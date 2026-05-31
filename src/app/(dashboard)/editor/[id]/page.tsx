@@ -39,9 +39,15 @@ export default function EditorPage() {
   const [showAddNode, setShowAddNode] = useState(false);
   const [nodeName, setNodeName] = useState("");
   const [nodeType, setNodeType] = useState("class");
-  const [generateLoading, setGenerateLoading] = useState(false);
   const [generatedCode, setGeneratedCode] = useState("");
   const [showCode, setShowCode] = useState(false);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState("java");
+  const [showTransform, setShowTransform] = useState(false);
+  const [transformLoading, setTransformLoading] = useState(false);
+  const [psmData, setPsmData] = useState<{ nodes: { id: string; name: string; attributes: string[]; methods: string[] }[]; relationships: { from: string; to: string; type: string }[] } | null>(null);
+  const [activeTab, setActiveTab] = useState<"code" | "psm">("code");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => { loadModel(); }, [id]);
 
@@ -82,7 +88,7 @@ export default function EditorPage() {
     const newNode: Node = {
       id: "node-" + Date.now(),
       type: "default",
-      position: { x: 100 + Math.random() * 300, y: 100 + Math.random() * 200 },
+      position: { x: 100 + Math.random() * 400, y: 100 + Math.random() * 300 },
       data: { label: nodeName },
       style: { ...nodeStyle, borderColor: colors[nodeType] || "#7c3aed" },
     };
@@ -92,29 +98,61 @@ export default function EditorPage() {
   }
 
   async function generateCode() {
-    setGenerateLoading(true);
+    if (nodes.length === 0) return;
+    setCodeLoading(true);
     setShowCode(true);
-    const nodeList = nodes.map((n) => n.data.label).join(", ");
-    const edgeList = edges.map((e) => {
-      const src = nodes.find((n) => n.id === e.source)?.data.label;
-      const tgt = nodes.find((n) => n.id === e.target)?.data.label;
-      return src + " -> " + tgt;
-    }).join(", ");
-
-    const prompt = "Gera codigo Java para um diagrama UML com as seguintes classes: " + nodeList + ". Relacoes: " + edgeList + ". Inclui atributos basicos e metodos. Responde apenas com o codigo.";
-
+    setActiveTab("code");
     try {
-      const res = await fetch("/api/ai", {
+      const res = await fetch("/api/codegen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ nodes, edges, language: selectedLanguage }),
       });
       const data = await res.json();
-      setGeneratedCode(data.content);
+      setGeneratedCode(data.code);
     } catch {
       setGeneratedCode("Erro ao gerar codigo.");
     }
-    setGenerateLoading(false);
+    setCodeLoading(false);
+  }
+
+  async function transformToPS() {
+    if (nodes.length === 0) return;
+    setTransformLoading(true);
+    setShowCode(true);
+    setActiveTab("psm");
+    try {
+      const res = await fetch("/api/transform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modelData: { nodes, edges }, targetLanguage: selectedLanguage }),
+      });
+      const data = await res.json();
+      setPsmData(data.psm);
+    } catch {
+      setPsmData(null);
+    }
+    setTransformLoading(false);
+  }
+
+  async function copyCode() {
+    await navigator.clipboard.writeText(generatedCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function exportDiagram() {
+    const svgEl = document.querySelector(".react-flow__renderer svg") as SVGElement;
+    if (!svgEl) return;
+    const serializer = new XMLSerializer();
+    const svgStr = serializer.serializeToString(svgEl);
+    const blob = new Blob([svgStr], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (model?.name || "diagrama") + ".svg";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const typeColors: Record<string, string> = {
@@ -123,9 +161,16 @@ export default function EditorPage() {
     metamodel: "text-amber-400 bg-amber-500/20 border-amber-500/30",
   };
 
+  const languages = [
+    { value: "java", label: "Java" },
+    { value: "python", label: "Python" },
+    { value: "typescript", label: "TypeScript" },
+    { value: "csharp", label: "C#" },
+  ];
+
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-slate-900/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-slate-900/50 flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <a href="javascript:history.back()" className="text-slate-400 hover:text-white transition-colors text-sm">
             Voltar
@@ -138,25 +183,29 @@ export default function EditorPage() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAddNode(true)}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors"
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="px-3 py-1.5 bg-white/10 border border-white/20 text-white text-sm rounded-lg focus:outline-none focus:border-purple-500"
           >
+            {languages.map((l) => (
+              <option key={l.value} value={l.value} style={{ background: "#1e293b" }}>{l.label}</option>
+            ))}
+          </select>
+          <button onClick={() => setShowAddNode(true)} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors">
             + Classe
           </button>
-          <button
-            onClick={generateCode}
-            disabled={nodes.length === 0}
-            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
-          >
+          <button onClick={transformToPS} disabled={nodes.length === 0} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors">
+            PIM → PSM
+          </button>
+          <button onClick={generateCode} disabled={nodes.length === 0} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors">
             Gerar codigo
           </button>
-          <button
-            onClick={saveDiagram}
-            disabled={saving}
-            className={"px-4 py-1.5 text-white text-sm rounded-lg transition-colors font-medium " + (saved ? "bg-green-600" : "bg-purple-600 hover:bg-purple-500")}
-          >
+          <button onClick={exportDiagram} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors">
+            Exportar SVG
+          </button>
+          <button onClick={saveDiagram} disabled={saving} className={"px-4 py-1.5 text-white text-sm rounded-lg transition-colors font-medium " + (saved ? "bg-green-600" : "bg-purple-600 hover:bg-purple-500")}>
             {saved ? "Guardado!" : saving ? "A guardar..." : "Guardar"}
           </button>
         </div>
@@ -182,6 +231,7 @@ export default function EditorPage() {
                 <p>Clica "+ Classe" para adicionar</p>
                 <p>Arrasta os nos para mover</p>
                 <p>Liga nos arrastando das bordas</p>
+                <p>Selecciona linguagem no topo</p>
               </div>
             </Panel>
           </ReactFlow>
@@ -223,26 +273,78 @@ export default function EditorPage() {
         {showCode && (
           <div className="w-96 border-l border-white/10 bg-slate-900 flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <span className="text-white font-medium text-sm">Codigo gerado</span>
+              <div className="flex gap-1">
+                <button onClick={() => setActiveTab("code")} className={"px-3 py-1 rounded-lg text-sm transition-colors " + (activeTab === "code" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white")}>
+                  Codigo
+                </button>
+                <button onClick={() => setActiveTab("psm")} className={"px-3 py-1 rounded-lg text-sm transition-colors " + (activeTab === "psm" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
+                  PSM
+                </button>
+              </div>
               <button onClick={() => setShowCode(false)} className="text-slate-400 hover:text-white text-sm">Fechar</button>
             </div>
+
             <div className="flex-1 overflow-auto p-4">
-              {generateLoading ? (
-                <div className="flex items-center gap-2 text-slate-400">
-                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">A gerar codigo...</span>
-                </div>
-              ) : (
-                <pre className="text-green-400 text-xs leading-relaxed whitespace-pre-wrap">{generatedCode}</pre>
+              {activeTab === "code" && (
+                codeLoading ? (
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">A gerar codigo...</span>
+                  </div>
+                ) : (
+                  <pre className="text-green-400 text-xs leading-relaxed whitespace-pre-wrap">{generatedCode}</pre>
+                )
+              )}
+
+              {activeTab === "psm" && (
+                transformLoading ? (
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">A transformar PIM em PSM...</span>
+                  </div>
+                ) : psmData && psmData.nodes ? (
+                  <div className="space-y-4">
+                    <p className="text-slate-400 text-xs mb-3">Modelo PSM para {selectedLanguage.toUpperCase()}</p>
+                    {psmData.nodes.map((node) => (
+                      <div key={node.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                        <h4 className="text-blue-400 font-semibold mb-2">{node.name}</h4>
+                        {node.attributes && node.attributes.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-slate-500 text-xs mb-1">Atributos:</p>
+                            {node.attributes.map((attr, i) => (
+                              <p key={i} className="text-green-400 text-xs">{attr}</p>
+                            ))}
+                          </div>
+                        )}
+                        {node.methods && node.methods.length > 0 && (
+                          <div>
+                            <p className="text-slate-500 text-xs mb-1">Metodos:</p>
+                            {node.methods.map((method, i) => (
+                              <p key={i} className="text-amber-400 text-xs">{method}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {psmData.relationships && psmData.relationships.length > 0 && (
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                        <p className="text-slate-400 text-xs mb-2">Relacoes:</p>
+                        {psmData.relationships.map((rel, i) => (
+                          <p key={i} className="text-purple-400 text-xs">{rel.from} → {rel.to} ({rel.type})</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-sm">Clica "PIM → PSM" para transformar o modelo</p>
+                )
               )}
             </div>
-            {!generateLoading && generatedCode && (
+
+            {activeTab === "code" && !codeLoading && generatedCode && (
               <div className="p-4 border-t border-white/10">
-                <button
-                  onClick={() => navigator.clipboard.writeText(generatedCode)}
-                  className="w-full py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors"
-                >
-                  Copiar codigo
+                <button onClick={copyCode} className={"w-full py-2 text-white text-sm rounded-lg transition-colors " + (copied ? "bg-green-600" : "bg-white/10 hover:bg-white/20")}>
+                  {copied ? "Copiado!" : "Copiar codigo"}
                 </button>
               </div>
             )}
