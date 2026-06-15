@@ -145,24 +145,32 @@ export default function EditorPage() {
   }
 
   async function exportDiagram() {
-  const flowEl = document.querySelector(".react-flow") as HTMLElement;
-  if (!flowEl) return;
   try {
+    const flowEl = document.querySelector(".react-flow") as HTMLElement;
+    if (!flowEl) {
+      alert("Elemento do diagrama nao encontrado.");
+      return;
+    }
+
     const canvas = await html2canvas(flowEl, {
       backgroundColor: "#0f0f1a",
       scale: 2,
       useCORS: true,
     });
+
     const imgData = canvas.toDataURL("image/png");
+
     const pdf = new jsPDF({
       orientation: "landscape",
       unit: "px",
       format: [canvas.width / 2, canvas.height / 2],
     });
+
     pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
     pdf.save((model?.name || "diagrama") + ".pdf");
-  } catch {
-    alert("Erro ao exportar PDF.");
+  } catch (err) {
+    console.error("Erro ao exportar PDF:", err);
+    alert("Erro ao exportar PDF: " + (err instanceof Error ? err.message : String(err)));
   }
 }
 
