@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
 import ReactFlow, {
   Node, Edge, addEdge, Connection,
   useNodesState, useEdgesState,
@@ -142,18 +145,26 @@ export default function EditorPage() {
   }
 
   async function exportDiagram() {
-    const svgEl = document.querySelector(".react-flow__renderer svg") as SVGElement;
-    if (!svgEl) return;
-    const serializer = new XMLSerializer();
-    const svgStr = serializer.serializeToString(svgEl);
-    const blob = new Blob([svgStr], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (model?.name || "diagrama") + ".svg";
-    a.click();
-    URL.revokeObjectURL(url);
+  const flowEl = document.querySelector(".react-flow") as HTMLElement;
+  if (!flowEl) return;
+  try {
+    const canvas = await html2canvas(flowEl, {
+      backgroundColor: "#0f0f1a",
+      scale: 2,
+      useCORS: true,
+    });
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({
+      orientation: "landscape",
+      unit: "px",
+      format: [canvas.width / 2, canvas.height / 2],
+    });
+    pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+    pdf.save((model?.name || "diagrama") + ".pdf");
+  } catch {
+    alert("Erro ao exportar PDF.");
   }
+}
 
   const typeColors: Record<string, string> = {
     PIM: "text-purple-400 bg-purple-500/20 border-purple-500/30",
@@ -203,8 +214,8 @@ export default function EditorPage() {
             Gerar codigo
           </button>
           <button onClick={exportDiagram} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors">
-            Exportar SVG
-          </button>
+  Exportar PDF
+</button>
           <button onClick={saveDiagram} disabled={saving} className={"px-4 py-1.5 text-white text-sm rounded-lg transition-colors font-medium " + (saved ? "bg-green-600" : "bg-purple-600 hover:bg-purple-500")}>
             {saved ? "Guardado!" : saving ? "A guardar..." : "Guardar"}
           </button>
