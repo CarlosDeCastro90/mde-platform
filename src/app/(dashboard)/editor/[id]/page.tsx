@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 
 import ReactFlow, {
   Node, Edge, addEdge, Connection,
