@@ -146,27 +146,76 @@ export default function EditorPage() {
 
   async function exportDiagram() {
   try {
-    const flowEl = document.querySelector(".react-flow") as HTMLElement;
-    if (!flowEl) {
-      alert("Elemento do diagrama nao encontrado.");
-      return;
+    const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    // Fundo escuro
+    pdf.setFillColor(15, 15, 26);
+    pdf.rect(0, 0, pageW, pageH, "F");
+
+    // Título
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(18);
+    pdf.text(model?.name || "Diagrama", 40, 40);
+
+    // Tipo do modelo
+    pdf.setFontSize(11);
+    pdf.setTextColor(167, 139, 250);
+    pdf.text("Tipo: " + (model?.type || ""), 40, 58);
+
+    // Data
+    pdf.setFontSize(9);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text("Exportado em: " + new Date().toLocaleDateString("pt-PT"), 40, 72);
+
+    // Linha separadora
+    pdf.setDrawColor(124, 58, 237);
+    pdf.setLineWidth(0.5);
+    pdf.line(40, 80, pageW - 40, 80);
+
+    // Desenhar nós
+    let xPos = 40;
+    let yPos = 100;
+    const nodeW = 160;
+    const nodeH = 50;
+    const gap = 20;
+    const cols = Math.floor((pageW - 80) / (nodeW + gap));
+
+    nodes.forEach((node, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const x = 40 + col * (nodeW + gap);
+      const y = yPos + row * (nodeH + gap);
+
+      // Fundo do nó
+      pdf.setFillColor(30, 27, 75);
+      pdf.setDrawColor(124, 58, 237);
+      pdf.setLineWidth(1);
+      pdf.roundedRect(x, y, nodeW, nodeH, 4, 4, "FD");
+
+      // Nome do nó
+      pdf.setTextColor(226, 232, 240);
+      pdf.setFontSize(11);
+      pdf.text(String(node.data?.label || ""), x + nodeW / 2, y + nodeH / 2 + 4, { align: "center" });
+    });
+
+    // Relações
+    if (edges.length > 0) {
+      const relY = yPos + (Math.ceil(nodes.length / cols)) * (nodeH + gap) + 20;
+      pdf.setTextColor(167, 139, 250);
+      pdf.setFontSize(11);
+      pdf.text("Relacoes:", 40, relY);
+      edges.forEach((edge, i) => {
+        const src = nodes.find((n) => n.id === edge.source)?.data?.label || edge.source;
+        const tgt = nodes.find((n) => n.id === edge.target)?.data?.label || edge.target;
+        pdf.setTextColor(148, 163, 184);
+        pdf.setFontSize(10);
+        pdf.text(src + "  →  " + tgt, 40, relY + 16 + i * 14);
+      });
     }
 
-    const canvas = await html2canvas(flowEl, {
-      backgroundColor: "#0f0f1a",
-      scale: 2,
-      useCORS: true,
-    });
-
-    const imgData = canvas.toDataURL("image/png");
-
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "px",
-      format: [canvas.width / 2, canvas.height / 2],
-    });
-
-    pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
     pdf.save((model?.name || "diagrama") + ".pdf");
   } catch (err) {
     console.error("Erro ao exportar PDF:", err);
