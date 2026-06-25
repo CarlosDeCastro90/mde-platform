@@ -22,22 +22,30 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
-
   const path = request.nextUrl.pathname;
+
+  if (path === "/") return supabaseResponse;
+  if (path.startsWith("/api")) return supabaseResponse;
+  if (path.startsWith("/_next")) return supabaseResponse;
+
   const isAuthPage = path === "/login" || path === "/register";
   const isProtected = path.startsWith("/dashboard") || path.startsWith("/projects") || path.startsWith("/editor");
 
   if (!user && isProtected) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
   if (user && isAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
