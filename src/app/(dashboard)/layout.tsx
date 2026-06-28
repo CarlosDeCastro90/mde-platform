@@ -1,16 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import AIAssistant from "@/components/ai/AIAssistant";
+import LogoutButton from "@/components/layout/LogoutButton";
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
   return (
     <div className="min-h-screen bg-slate-950">
       <nav className="border-b border-white/10 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-40">
@@ -24,15 +19,15 @@ export default async function DashboardLayout({
                 <span className="text-white font-bold text-lg">MDE Platform</span>
               </a>
               <div className="hidden sm:flex items-center gap-1">
-                <a href="/dashboard" className="px-3 py-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors">Dashboard</a>
-                <a href="/projects" className="px-3 py-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors">Projectos</a>
+                <a href="/dashboard" className="px-3 py-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors">
+                  Dashboard
+                </a>
+                <a href="/projects" className="px-3 py-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors">
+                  Projectos
+                </a>
               </div>
             </div>
-            <form action="/api/auth/logout" method="POST">
-              <button type="submit" className="px-4 py-2 text-slate-400 hover:text-white text-sm transition-colors">
-                Sair
-              </button>
-            </form>
+            <LogoutButton />
           </div>
         </div>
       </nav>

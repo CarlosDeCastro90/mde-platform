@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,22 +14,17 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        setError("Erro: " + error.message);
+        setError("Email ou senha incorretos.");
         setLoading(false);
         return;
       }
-
-      if (data.user) {
-        window.location.href = "/dashboard";
-      }
-    } catch (err) {
-      setError("Erro inesperado. Verifica a consola.");
+      window.location.href = "/dashboard";
+    } catch {
+      setError("Erro inesperado. Tenta novamente.");
       setLoading(false);
     }
   }
